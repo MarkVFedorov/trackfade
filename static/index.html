@@ -261,10 +261,11 @@
     </div>
 
     <script>
-       let musicKit = null;
+    let musicKit = null;
 
-        // Initialize Apple Music
-        async function initAppleMusic() {
+    // Initialize Apple Music
+    async function initAppleMusic() {
+        try {
             const response = await fetch('/apple-token');
             const { token } = await response.json();
             
@@ -276,87 +277,96 @@
                 }
             });
 
-            updateUI();
+            // Check auth status after initialization
+            await checkAuthStatus();
+        } catch (error) {
+            console.error('Apple Music initialization failed:', error);
         }
+    }
 
-        // Update UI State
-        async function updateUI() {
-            const spotifyAuthed = await checkSpotifyAuth();
-            const appleAuthed = musicKit?.isAuthorized;
+    // Check authentication status for both services
+    async function checkAuthStatus() {
+        const spotifyAuthed = await checkSpotifyAuth();
+        const appleAuthed = musicKit?.isAuthorized;
 
-            document.getElementById('authSection').classList.toggle('hidden', spotifyAuthed && appleAuthed);
-            document.getElementById('transferSection').classList.toggle('hidden', !(spotifyAuthed && appleAuthed));
-            document.getElementById('resultsSection').classList.add('hidden');
+        document.getElementById('authSection').classList.toggle('hidden', spotifyAuthed && appleAuthed);
+        document.getElementById('transferSection').classList.toggle('hidden', !(spotifyAuthed && appleAuthed));
+        document.getElementById('resultsSection').classList.add('hidden');
+    }
+
+    // Check Spotify auth status
+    async function checkSpotifyAuth() {
+        try {
+            const response = await fetch('/check_spotify');
+            const data = await response.json();
+            return data.authenticated;
+        } catch (error) {
+            console.error('Spotify check failed:', error);
+            return false;
         }
+    }
 
-        // Check Spotify Auth
-        async function checkSpotifyAuth() {
-            try {
-                const response = await fetch('/check_spotify');
-                return response.ok;
-            } catch {
-                return false;
-            }
-        }
+    // Transfer handler
+    async function startTransfer() {
+        const url = document.getElementById('playlistUrl').value;
+        const appleToken = musicKit.currentUserMusicToken;
+        
+        document.getElementById('progressBar').style.width = '0%';
+        document.getElementById('progressText').textContent = 'Initializing transfer...';
 
-        // Transfer Handler
-        async function startTransfer() {
-            const url = document.getElementById('playlistUrl').value;
-            const appleToken = musicKit.currentUserMusicToken;
+        try {
+            const response = await fetch('/transfer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    playlist_url: url,
+                    apple_token: appleToken
+                })
+            });
+
+            const result = await response.json();
             
-            document.getElementById('progressBar').style.width = '0%';
-            document.getElementById('progressText').textContent = '0% Complete';
+            if(result.error) throw new Error(result.error);
 
-            try {
-                const response = await fetch('/transfer', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        playlist_url: url,
-                        apple_token: appleToken
-                    })
-                });
+            document.getElementById('transferredCount').textContent = result.transferred;
+            document.getElementById('progressBar').style.width = '100%';
+            document.getElementById('progressText').textContent = 'Transfer complete!';
 
-                const result = await response.json();
-                
-                if(result.error) throw new Error(result.error);
-
-                document.getElementById('transferredCount').textContent = result.transferred;
-                document.getElementById('progressBar').style.width = '100%';
-                document.getElementById('progressText').textContent = '100% Complete';
-
-                if(result.missing.length) {
-                    document.getElementById('missingTracks').innerHTML = `
-                        <h3>Missing Tracks (${result.missing.length})</h3>
-                        <ul>${result.missing.map(t => `<li>${t}</li>`).join('')}</ul>
-                    `;
-                }
-
-                document.getElementById('resultsSection').classList.remove('hidden');
-            } catch(error) {
-                alert(`Transfer failed: ${error.message}`);
+            if(result.missing.length) {
+                document.getElementById('missingTracks').innerHTML = `
+                    <h3>Missing Tracks (${result.missing.length})</h3>
+                    <ul>${result.missing.map(t => `<li>${t}</li>`).join('')}</ul>
+                `;
             }
-        }
 
-        // Logout Handlers
-        async function logoutApple() {
-            if(musicKit) await musicKit.unauthorize();
-            updateUI();
+            document.getElementById('resultsSection').classList.remove('hidden');
+        } catch(error) {
+            alert(`Transfer failed: ${error.message}`);
         }
+    }
 
-        async function logoutSpotify() {
-            await fetch('/spotify_logout');
-            updateUI();
-        }
+    // Logout handlers
+    async function logoutApple() {
+        if(musicKit) await musicKit.unauthorize();
+        checkAuthStatus();
+    }
 
-        // Initial Setup
+    async function logoutSpotify() {
+        await fetch('/spotify_logout');
+        checkAuthStatus();
+    }
+
+    // Event listeners
+    document.addEventListener('DOMContentLoaded', async () => {
+        // Initialize Apple Music first
+        await initAppleMusic();
+        
+        // Setup Apple auth button
         document.getElementById('appleAuthBtn').addEventListener('click', async () => {
             await musicKit.authorize();
-            updateUI();
+            checkAuthStatus();
         });
-
-        initAppleMusic();
-        updateUI();
+    });
     </script>
 </body>
 </html>
