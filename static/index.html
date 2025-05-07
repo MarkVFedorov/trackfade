@@ -260,9 +260,103 @@
         </div>
     </div>
 
-    <!-- Keep the JavaScript from previous version -->
     <script>
-        // (Keep the JavaScript code from previous version here)
+       let musicKit = null;
+
+        // Initialize Apple Music
+        async function initAppleMusic() {
+            const response = await fetch('/apple-token');
+            const { token } = await response.json();
+            
+            musicKit = await MusicKit.configure({
+                developerToken: token,
+                app: {
+                    name: 'TrackFade',
+                    build: '1.0'
+                }
+            });
+
+            updateUI();
+        }
+
+        // Update UI State
+        async function updateUI() {
+            const spotifyAuthed = await checkSpotifyAuth();
+            const appleAuthed = musicKit?.isAuthorized;
+
+            document.getElementById('authSection').classList.toggle('hidden', spotifyAuthed && appleAuthed);
+            document.getElementById('transferSection').classList.toggle('hidden', !(spotifyAuthed && appleAuthed));
+            document.getElementById('resultsSection').classList.add('hidden');
+        }
+
+        // Check Spotify Auth
+        async function checkSpotifyAuth() {
+            try {
+                const response = await fetch('/check_spotify');
+                return response.ok;
+            } catch {
+                return false;
+            }
+        }
+
+        // Transfer Handler
+        async function startTransfer() {
+            const url = document.getElementById('playlistUrl').value;
+            const appleToken = musicKit.currentUserMusicToken;
+            
+            document.getElementById('progressBar').style.width = '0%';
+            document.getElementById('progressText').textContent = '0% Complete';
+
+            try {
+                const response = await fetch('/transfer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        playlist_url: url,
+                        apple_token: appleToken
+                    })
+                });
+
+                const result = await response.json();
+                
+                if(result.error) throw new Error(result.error);
+
+                document.getElementById('transferredCount').textContent = result.transferred;
+                document.getElementById('progressBar').style.width = '100%';
+                document.getElementById('progressText').textContent = '100% Complete';
+
+                if(result.missing.length) {
+                    document.getElementById('missingTracks').innerHTML = `
+                        <h3>Missing Tracks (${result.missing.length})</h3>
+                        <ul>${result.missing.map(t => `<li>${t}</li>`).join('')}</ul>
+                    `;
+                }
+
+                document.getElementById('resultsSection').classList.remove('hidden');
+            } catch(error) {
+                alert(`Transfer failed: ${error.message}`);
+            }
+        }
+
+        // Logout Handlers
+        async function logoutApple() {
+            if(musicKit) await musicKit.unauthorize();
+            updateUI();
+        }
+
+        async function logoutSpotify() {
+            await fetch('/spotify_logout');
+            updateUI();
+        }
+
+        // Initial Setup
+        document.getElementById('appleAuthBtn').addEventListener('click', async () => {
+            await musicKit.authorize();
+            updateUI();
+        });
+
+        initAppleMusic();
+        updateUI();
     </script>
 </body>
 </html>
