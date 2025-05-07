@@ -1,0 +1,253 @@
+  <style>
+        :root {
+            --spotify-green: #1DB954;
+            --apple-red: #FF2D55;
+            --gradient-start: #0f0c29;
+            --gradient-end: #302b63;
+            --glass-bg: rgba(255, 255, 255, 0.1);
+            --text-light: #ffffff;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+            color: var(--text-light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        .background-wave {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100px;
+            background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1440 320" xmlns="http://www.w3.org/2000/svg"><path fill="%23ffffff10" d="M0,128L48,138.7C96,149,192,171,288,170.7C384,171,480,149,576,160C672,171,768,213,864,218.7C960,224,1056,192,1152,165.3C1248,139,1344,117,1392,106.7L1440,96L1440,320L1392,320C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320L0,320Z"></path></svg>');
+            z-index: 0;
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            width: 90%;
+            max-width: 800px;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: fadeInUp 0.8s ease;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+        }
+
+        .card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border-radius: 20px;
+            padding: 2.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: transform 0.3s ease;
+            animation: fadeIn 0.6s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .auth-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            border: none;
+            border-radius: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            font-size: 1.1rem;
+        }
+
+        .btn i {
+            font-size: 1.3rem;
+        }
+
+        .spotify-btn {
+            background: var(--spotify-green);
+            color: white;
+        }
+
+        .apple-btn {
+            background: var(--apple-red);
+            color: white;
+        }
+
+        .btn:hover {
+            filter: brightness(1.1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .playlist-input {
+            width: 100%;
+            padding: 1.2rem;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            color: white;
+            font-size: 1rem;
+            margin: 2rem 0;
+            transition: all 0.3s ease;
+        }
+
+        .playlist-input:focus {
+            outline: none;
+            border-color: var(--spotify-green);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .progress-container {
+            margin: 2rem 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            height: 12px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--spotify-green), var(--apple-red));
+            border-radius: 10px;
+            transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .results-card {
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .music-note {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            animation: bounce 2s infinite;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(40px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .missing-tracks {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-top: 2rem;
+            text-align: left;
+        }
+
+        .missing-tracks ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            columns: 2;
+        }
+
+        @media (max-width: 768px) {
+            .missing-tracks ul {
+                columns: 1;
+            }
+            
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="background-wave"></div>
+    
+    <div class="container">
+        <div class="header">
+            <h1>
+                <i class="fas fa-music"></i>
+                TrackFade
+                <i class="fas fa-exchange-alt"></i>
+            </h1>
+            <p>Seamlessly transfer playlists between music platforms</p>
+        </div>
+
+        <div id="authSection" class="card">
+            <div class="auth-buttons">
+                <button class="btn spotify-btn" onclick="window.location.href='/spotify_login'">
+                    <i class="fab fa-spotify"></i>
+                    Connect Spotify
+                </button>
+                <button class="btn apple-btn" id="appleAuthBtn">
+                    <i class="fab fa-apple"></i>
+                    Connect Apple Music
+                </button>
+            </div>
+        </div>
+
+        <div id="transferSection" class="card hidden">
+            <input type="text" class="playlist-input" id="playlistUrl" placeholder="Paste Spotify Playlist URL">
+            <button class="btn spotify-btn" onclick="startTransfer()">
+                <i class="fas fa-magic"></i>
+                Start Magic Transfer
+            </button>
+            
+            <div class="progress-container">
+                <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+            </div>
+            <p id="progressText">Initializing transfer...</p>
+        </div>
+
+        <div id="resultsSection" class="card hidden results-card">
+            <div class="music-note">🎉</div>
+            <h2>Transfer Complete!</h2>
+            <p><span id="transferredCount">0</span> tracks successfully transferred</p>
+            <div class="missing-tracks" id="missingTracks"></div>
+            
+            <div style="margin-top: 2rem;">
+                <button class="btn spotify-btn" onclick="location.reload()">
+                    <i class="fas fa-redo"></i>
+                    New Transfer
+                </button>
+            </div>
+        </div>
+    </div>
