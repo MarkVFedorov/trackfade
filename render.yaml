@@ -7,6 +7,12 @@ services:
     envVars:
       - key: FLASK_SECRET_KEY
         value: f6011816e17dab9e43292ca7f997bf66226f464066a7d23d
+      - key: SESSION_TYPE
+        value: filesystem
+      - key: SESSION_COOKIE_SECURE
+        value: 'True'
+      - key: SESSION_COOKIE_SAMESITE
+        value: Lax
       - key: SPOTIFY_CLIENT_ID
         value: 0420161b17bd47feb363bc86d154f9f1
       - key: SPOTIFY_CLIENT_SECRET
