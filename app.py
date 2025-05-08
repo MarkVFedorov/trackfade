@@ -33,37 +33,28 @@ def spotify_callback():
         if request.args.get('error'):
             return redirect('/?error=spotify_auth_failed')
         
-@app.route('/callback')
-def spotify_callback():
-    if request.args.get('error'):
-        return redirect('/?error=spotify_auth_failed')
-    
-    code = request.args.get('code')
-    state = request.args.get('state')
-    
-    if state != session.get('state'):
-        return redirect('/?error=state_mismatch')
+        code = request.args.get('code')
+        state = request.args.get('state')
         
+        if state != session.get('state'):
+            return redirect('/?error=state_mismatch')
+
+        # Exchange code for token
+        response = requests.post('https://accounts.spotify.com/api/token', data={
+            'grant_type': 'authorization_code',
+            'code': code,
+            'redirect_uri': os.getenv('SPOTIFY_REDIRECT_URI'),
+            'client_id': os.getenv('SPOTIFY_CLIENT_ID'),
+            'client_secret': os.getenv('SPOTIFY_CLIENT_SECRET')
+        })
+        
+        if response.status_code != 200:
+            return redirect('/?error=token_exchange_failed')
+        
+        session['spotify_token'] = response.json().get('access_token')
+        return redirect('/')
+
     except Exception as e:
-        app.logger.error(f"Callback error: {str(e)}")
-        return redirect('/?error=auth_failed')
-
-    # Exchange code for token
-    response = requests.post('https://accounts.spotify.com/api/token', data={
-        'grant_type': 'authorization_code',
-        'code': code,
-        'redirect_uri': os.getenv('SPOTIFY_REDIRECT_URI'),
-        'client_id': os.getenv('SPOTIFY_CLIENT_ID'),
-        'client_secret': os.getenv('SPOTIFY_CLIENT_SECRET')
-    })
-    
-    if response.status_code != 200:
-        return redirect('/?error=token_exchange_failed')
-    
-    session['spotify_token'] = response.json().get('access_token')
-    return redirect('/')
-
-except Exception as e:
         app.logger.error(f"Spotify callback error: {str(e)}")
         return redirect('/?error=auth_failed')
 
