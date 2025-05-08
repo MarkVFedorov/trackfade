@@ -29,6 +29,12 @@ def spotify_login():
 
 @app.route('/callback')
 def spotify_callback():
+    try:
+        if request.args.get('error'):
+            return redirect('/?error=spotify_auth_failed')
+        
+@app.route('/callback')
+def spotify_callback():
     if request.args.get('error'):
         return redirect('/?error=spotify_auth_failed')
     
@@ -37,6 +43,10 @@ def spotify_callback():
     
     if state != session.get('state'):
         return redirect('/?error=state_mismatch')
+        
+    except Exception as e:
+        app.logger.error(f"Callback error: {str(e)}")
+        return redirect('/?error=auth_failed')
 
     # Exchange code for token
     response = requests.post('https://accounts.spotify.com/api/token', data={
@@ -185,6 +195,15 @@ def create_apple_playlist(name, track_ids, apple_token):
     except Exception as e:
         app.logger.error(f"Apple Music API error: {str(e)}")
         raise
+
+# Error handling
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': 'Endpoint not found'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'error': 'Internal server error'}), 500
 
 # Auth Status Endpoint
 @app.route('/check_spotify')
