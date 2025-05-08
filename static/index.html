@@ -317,6 +317,12 @@
     document.addEventListener('DOMContentLoaded', async () => {
         await initAppleMusic();
     });
+    
+    // Debugging logs
+    console.log("Script loaded successfully");
+    window.onerror = function(message, source, lineno, colno, error) {
+        console.error("Global error:", message, "at", source, lineno + ":" + colno);
+    };
     </script>
 </body>
 </html>
