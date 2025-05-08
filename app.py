@@ -63,6 +63,10 @@ def spotify_callback():
     session['spotify_token'] = response.json().get('access_token')
     return redirect('/')
 
+except Exception as e:
+        app.logger.error(f"Spotify callback error: {str(e)}")
+        return redirect('/?error=auth_failed')
+
 # Apple Music Integration
 @app.route('/apple-token')
 def generate_apple_token():
