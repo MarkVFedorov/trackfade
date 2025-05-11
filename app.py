@@ -63,19 +63,30 @@ def spotify_callback():
 def generate_apple_token():
     try:
         now = datetime.utcnow()
+        token_payload = {
+            'iss': os.getenv('APPLE_TEAM_ID'),
+            'iat': now,
+            'exp': now + timedelta(hours=1)
+        }
+        
+        private_key = os.getenv('APPLE_PRIVATE_KEY').replace('\\n', '\n')
+        
         token = jwt.encode(
-            {
-                'iss': os.getenv('APPLE_TEAM_ID'),
-                'iat': now,
-                'exp': now + timedelta(hours=1)
-            },
-            os.getenv('APPLE_PRIVATE_KEY').replace('\\n', '\n'),
+            token_payload,
+            private_key,
             algorithm='ES256',
-            headers={'kid': os.getenv('APPLE_KEY_ID')}
+            headers={
+                'kid': os.getenv('APPLE_KEY_ID'),
+                'alg': 'ES256'
+            }
         )
+        
+        app.logger.info("Successfully generated Apple Music token")
         return jsonify({'token': token})
+        
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        app.logger.error(f"Apple token generation failed: {str(e)}")
+        return jsonify({'error': 'Apple Music configuration error'}), 500
 
 # Playlist Transfer Logic
 @app.route('/transfer', methods=['POST'])
