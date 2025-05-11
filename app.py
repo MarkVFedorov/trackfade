@@ -88,6 +88,20 @@ def generate_apple_token():
         app.logger.error(f"Apple token generation failed: {str(e)}")
         return jsonify({'error': 'Apple Music configuration error'}), 500
 
+@app.route('/.well-known/apple-app-site-association')
+def apple_app_site_association():
+    return jsonify({
+        "applinks": {
+            "apps": [],
+            "details": [
+                {
+                    "appID": "B9P7BYTB4S.com.trackfade.musickit",  # TEAM_ID.BUNDLE_ID
+                    "paths": ["*"]
+                }
+            ]
+        }
+    }), 200, {'Content-Type': 'application/json'}
+
 # Playlist Transfer Logic
 @app.route('/transfer', methods=['POST'])
 def transfer_playlist():
