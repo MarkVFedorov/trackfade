@@ -264,30 +264,57 @@
     </div>
 
     <script>
+    let musicKitInstance = null;
+
     // Initialize Apple Music
-    async function initAppleMusic() {
+    async function initializeMusicKit() {
         try {
-            const response = await fetch('/apple-token');
-            const { token } = await response.json();
+            // Get developer token from backend
+            const tokenResponse = await fetch('/apple-token');
+            const { token } = await tokenResponse.json();
             
-            musicKit = await MusicKit.configure({
+            // Configure MusicKit
+            musicKitInstance = await MusicKit.configure({
                 developerToken: token,
                 app: {
                     name: 'TrackFade',
                     build: '1.0'
-                }
+                },
+                features: ['listen-with']
             });
 
-            // Add Apple Music click handler
-            document.getElementById('appleAuthBtn').addEventListener('click', async () => {
-                try {
-                    const userToken = await musicKit.authorize();
-                    checkAuthStatus();
-                } catch (error) {
-                    console.error('Apple Auth failed:', error);
-                }
-            });
+            // Check existing authorization
+            updateAuthState();
+        } catch (error) {
+            console.error('MusicKit initialization failed:', error);
+        }
+    }
 
+    // Handle Apple Music authorization
+    async function handleAppleAuth() {
+        try {
+            const musicUserToken = await musicKitInstance.authorize();
+            updateAuthState();
+        } catch (error) {
+            console.error('Apple Music authorization failed:', error);
+            alert('Apple Music authentication failed. Please try again.');
+        }
+    }
+
+    // Update UI state
+    async function updateAuthState() {
+        const spotifyAuthed = await checkSpotifyAuth();
+        const appleAuthed = musicKitInstance?.isAuthorized;
+        
+        document.getElementById('authSection').classList.toggle('hidden', spotifyAuthed && appleAuthed);
+        document.getElementById('transferSection').classList.toggle('hidden', !(spotifyAuthed && appleAuthed));
+    }
+
+    // Add event listeners when DOM loads
+    document.addEventListener('DOMContentLoaded', async () => {
+        await initializeMusicKit();
+        document.getElementById('appleAuthBtn').addEventListener('click', handleAppleAuth);
+    });
             checkAuthStatus();
         } catch (error) {
             console.error('MusicKit init failed:', error);
