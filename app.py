@@ -70,7 +70,8 @@ def generate_apple_token():
         }
         
         private_key = os.getenv('APPLE_PRIVATE_KEY').replace('\\n', '\n')
-        
+
+        # Explicitly specify the algorithm
         token = jwt.encode(
             token_payload,
             private_key,
