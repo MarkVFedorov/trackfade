@@ -269,24 +269,32 @@
     // Initialize Apple Music
     async function initializeMusicKit() {
         try {
+            // Show loading overlay
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            
             // Get developer token from backend
             const tokenResponse = await fetch('/apple-token');
             const { token } = await tokenResponse.json();
             
-            // Configure MusicKit
+            // Configure MusicKit with bundleID
             musicKitInstance = await MusicKit.configure({
                 developerToken: token,
                 app: {
                     name: 'TrackFade',
-                    build: '1.0'
+                    build: '1.0',
+                    bundleID: 'com.trackfade.musickit'  // Must match Apple Developer
                 },
                 features: ['listen-with']
             });
 
-            // Check existing authorization
-            updateAuthState();
+            // Update UI state after initialization
+            await updateAuthState();
         } catch (error) {
             console.error('MusicKit initialization failed:', error);
+            alert('Failed to initialize Apple Music integration');
+        } finally {
+            // Hide loading overlay
+            document.getElementById('loadingOverlay').style.display = 'none';
         }
     }
 
@@ -294,7 +302,8 @@
     async function handleAppleAuth() {
         try {
             const musicUserToken = await musicKitInstance.authorize();
-            updateAuthState();
+            await updateAuthState();
+            alert('Successfully connected Apple Music!');
         } catch (error) {
             console.error('Apple Music authorization failed:', error);
             alert('Apple Music authentication failed. Please try again.');
@@ -303,25 +312,24 @@
 
     // Update UI state
     async function updateAuthState() {
-        const spotifyAuthed = await checkSpotifyAuth();
-        const appleAuthed = musicKitInstance?.isAuthorized;
-        
-        document.getElementById('authSection').classList.toggle('hidden', spotifyAuthed && appleAuthed);
-        document.getElementById('transferSection').classList.toggle('hidden', !(spotifyAuthed && appleAuthed));
-    }
-
-    // Add event listeners when DOM loads
-    document.addEventListener('DOMContentLoaded', async () => {
-        await initializeMusicKit();
-        document.getElementById('appleAuthBtn').addEventListener('click', handleAppleAuth);
-    });
-            checkAuthStatus();
+        try {
+            const spotifyAuthed = await checkSpotifyAuth();
+            const appleAuthed = musicKitInstance?.isAuthorized;
+            
+            document.getElementById('authSection').classList.toggle(
+                'hidden', 
+                spotifyAuthed && appleAuthed
+            );
+            document.getElementById('transferSection').classList.toggle(
+                'hidden', 
+                !(spotifyAuthed && appleAuthed)
+            );
         } catch (error) {
-            console.error('MusicKit init failed:', error);
+            console.error('Auth state update failed:', error);
         }
     }
 
-    // Spotify Auth Check
+    // Check Spotify auth status
     async function checkSpotifyAuth() {
         try {
             const response = await fetch('/check_spotify');
@@ -331,21 +339,13 @@
         }
     }
 
-    // Universal Auth Check
-    async function checkAuthStatus() {
-        const spotifyAuthed = await checkSpotifyAuth();
-        const appleAuthed = musicKit?.isAuthorized;
-
-        document.getElementById('authSection').classList.toggle('hidden', spotifyAuthed && appleAuthed);
-        document.getElementById('transferSection').classList.toggle('hidden', !(spotifyAuthed && appleAuthed));
-    }
-
     // Initialize when DOM loads
     document.addEventListener('DOMContentLoaded', async () => {
-        await initAppleMusic();
+        await initializeMusicKit();
+        document.getElementById('appleAuthBtn').addEventListener('click', handleAppleAuth);
     });
-    
-    // Debugging logs
+
+    // Debugging
     console.log("Script loaded successfully");
     window.onerror = function(message, source, lineno, colno, error) {
         console.error("Global error:", message, "at", source, lineno + ":" + colno);
