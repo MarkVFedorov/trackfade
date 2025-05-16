@@ -350,6 +350,57 @@
     window.onerror = function(message, source, lineno, colno, error) {
         console.error("Global error:", message, "at", source, lineno + ":" + colno);
     };
+
+    async function startTransfer() {
+        try {
+            // Show loading state
+            document.getElementById('progressBar').style.width = '5%';
+            document.getElementById('progressText').textContent = 'Starting transfer...';
+            
+            const url = document.getElementById('playlistUrl').value;
+            const appleToken = musicKitInstance.currentUserMusicToken;
+
+            // Validate input
+            if (!url.includes('open.spotify.com/playlist/')) {
+                throw new Error('Invalid Spotify playlist URL');
+            }
+
+            // Start transfer
+            const response = await fetch('/transfer', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    playlist_url: url,
+                    apple_token: appleToken
+                })
+            });
+
+            // Update progress
+            document.getElementById('progressBar').style.width = '50%';
+            document.getElementById('progressText').textContent = 'Processing tracks...';
+
+            const result = await response.json();
+            
+            if (!response.ok) throw new Error(result.error || 'Transfer failed');
+
+            // Complete progress
+            document.getElementById('progressBar').style.width = '100%';
+            document.getElementById('progressText').textContent = 'Transfer complete!';
+            
+            // Show results
+            document.getElementById('transferredCount').textContent = result.transferred;
+            document.getElementById('missingTracks').innerHTML = result.missing.length > 0 ? 
+                `<h3>Missing ${result.missing.length} tracks:</h3>
+                 <ul>${result.missing.map(t => `<li>${t}</li>`).join('')}</ul>` : '';
+            
+            document.getElementById('resultsSection').classList.remove('hidden');
+
+        } catch (error) {
+            console.error('Transfer error:', error);
+            document.getElementById('progressText').textContent = `Error: ${error.message}`;
+            document.getElementById('progressBar').style.background = '#ff0000';
+        }
+    }
     </script>
 </body>
 </html>
