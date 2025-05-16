@@ -116,39 +116,55 @@ def transfer_playlist():
             return jsonify({'error': 'Missing required parameters'}), 400
 
         # Extract Spotify playlist ID
-        playlist_id = spotify_url.split('/')[-1].split('?')[0]
-        spotify_tracks = get_spotify_tracks(playlist_id)
-        
+        try:
+            playlist_id = spotify_url.split('/playlist/')[1].split('?')[0]
+        except IndexError:
+            return jsonify({'error': 'Invalid Spotify playlist URL'}), 400
+
+        # Get Spotify tracks
+        try:
+            spotify_tracks = get_spotify_tracks(playlist_id)
+        except Exception as e:
+            return jsonify({'error': f'Spotify API error: {str(e)}'}), 500
+
         # Process tracks
         apple_tracks = []
         missing_tracks = []
         
-        for idx, track in enumerate(spotify_tracks):
-            apple_id = search_apple_music(
-                f"{track['name']} {track['artist']}",
+        for track in spotify_tracks:
+            try:
+                apple_id = search_apple_music(
+                    f"{track['name']} {track['artist']}",
+                    apple_token
+                )
+                if apple_id:
+                    apple_tracks.append(apple_id)
+                else:
+                    missing_tracks.append(f"{track['artist']} - {track['name']}")
+            except Exception as e:
+                app.logger.error(f"Track error: {track} - {str(e)}")
+                missing_tracks.append(f"{track['artist']} - {track['name']}")
+
+        # Create Apple Music playlist
+        try:
+            created = create_apple_playlist(
+                "Imported from Spotify",
+                apple_tracks,
                 apple_token
             )
-            if apple_id:
-                apple_tracks.append(apple_id)
-            else:
-                missing_tracks.append(f"{track['artist']} - {track['name']}")
-        
-        # Create Apple Music playlist
-        created = create_apple_playlist(
-            "Spotify Import",
-            apple_tracks,
-            apple_token
-        )
-        
+            playlist_url = created.get('attributes', {}).get('url', '#')
+        except Exception as e:
+            return jsonify({'error': f'Apple Music API error: {str(e)}'}), 500
+
         return jsonify({
             'transferred': len(apple_tracks),
             'missing': missing_tracks,
-            'playlist_url': created.get('attributes', {}).get('url', '#')
+            'playlist_url': playlist_url
         })
     
     except Exception as e:
-        app.logger.error(f"Transfer error: {str(e)}")
-        return jsonify({'error': 'Playlist transfer failed'}), 500
+        app.logger.error(f"Transfer failed: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 # Spotify API Helper
 def get_spotify_tracks(playlist_id):
@@ -177,14 +193,17 @@ def search_apple_music(query, apple_token):
             'Music-User-Token': apple_token
         }
         response = requests.get(
-            f'https://api.music.apple.com/v1/catalog/us/search?types=songs&limit=1&term={query}',
+            f'https://api.music.apple.com/v1/catalog/us/search?types=songs&limit=1&term={requests.utils.quote(query)}',
             headers=headers
         )
         response.raise_for_status()
         
-        return response.json()['results']['songs']['data'][0]['id'] if response.json().get('results') else None
-    
-    except Exception:
+        if response.json().get('results', {}).get('songs', {}).get('data'):
+            return response.json()['results']['songs']['data'][0]['id']
+        return None
+        
+    except Exception as e:
+        app.logger.error(f"Apple search failed for {query}: {str(e)}")
         return None
 
 def create_apple_playlist(name, track_ids, apple_token):
