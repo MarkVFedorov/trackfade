@@ -75,7 +75,17 @@ def generate_apple_token():
             'iss': os.getenv('APPLE_TEAM_ID'),
             'iat': now,
             'exp': now + timedelta(hours=1)
-        }
+       
+        except Exception as e:
+        app.logger.error(f"Apple token failure: {str(e)}")
+        return jsonify({
+            'error': 'Apple Music config error',
+            'debug': {
+                'team_id_set': bool(os.getenv('APPLE_TEAM_ID')),
+                'key_id_set': bool(os.getenv('APPLE_KEY_ID')),
+                'private_key_valid': 'BEGIN PRIVATE KEY' in os.getenv('APPLE_PRIVATE_KEY', '')
+            }
+        }), 500
         
         private_key = os.getenv('APPLE_PRIVATE_KEY').replace('\\n', '\n')
         
