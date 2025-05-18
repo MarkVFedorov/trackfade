@@ -352,39 +352,28 @@
     };
 
     async function startTransfer() {
-        try {
-            const url = document.getElementById('playlistUrl').value;
-            const appleToken = musicKitInstance.currentUserMusicToken;
+    try {
+        const url = document.getElementById('playlistUrl').value;
+        const appleToken = musicKitInstance.currentUserMusicToken;
 
-            // Validate inputs
-            if (!url || !appleToken) {
-                throw new Error('Please connect both services and enter a playlist URL');
-            }
+        // Validate inputs
+        if (!url || !appleToken) {
+            throw new Error('Please connect both services and enter a playlist URL');
+        }
 
-            // Show loading state
-            document.getElementById('progressBar').style.width = '10%';
-            document.getElementById('progressText').textContent = 'Starting transfer...';
+        // Show loading state
+        document.getElementById('progressBar').style.width = '10%';
+        document.getElementById('progressText').textContent = 'Starting transfer...';
 
-            const response = await fetch('/transfer', {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'Apple-Music-User-Token': appleToken  // Add this header
-                },
-                body: JSON.stringify({
-                    playlist_url: url
-                })
-            });
-
-            // Start transfer
-            const response = await fetch('/transfer', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    playlist_url: url,
-                    apple_token: appleToken
-                })
-            });
+        // ✅ Single fetch call with proper headers
+        const response = await fetch('/transfer', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Apple-Music-User-Token': appleToken
+            },
+            body: JSON.stringify({ playlist_url: url })
+        });
 
             // Update progress
             document.getElementById('progressBar').style.width = '50%';
