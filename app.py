@@ -4,14 +4,20 @@ import jwt
 import requests
 from datetime import datetime, timedelta
 from flask import Flask, request, session, redirect, jsonify, send_from_directory
+from flask_cors import CORS
 from dotenv import load_dotenv
 
 load_dotenv()
 
 app = Flask(__name__, static_folder='static', static_url_path='')
 app.secret_key = os.getenv('FLASK_SECRET_KEY')
-app.config['SESSION_COOKIE_SECURE'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config.update(
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax'
+)
+
+CORS(app, supports_credentials=True, origins=[os.getenv('FRONTEND_URL')])
 
 # Spotify OAuth Endpoints
 @app.route('/spotify_login')
@@ -39,7 +45,6 @@ def spotify_callback():
         if state != session.get('state'):
             return redirect('/?error=state_mismatch')
 
-        # Exchange code for token
         response = requests.post('https://accounts.spotify.com/api/token', data={
             'grant_type': 'authorization_code',
             'code': code,
@@ -71,11 +76,9 @@ def generate_apple_token():
         
         private_key = os.getenv('APPLE_PRIVATE_KEY').replace('\\n', '\n')
         
-        # Validate key format
         if not private_key.startswith('-----BEGIN PRIVATE KEY-----'):
             raise ValueError('Invalid private key format')
 
-        # Explicitly specify the algorithm
         token = jwt.encode(
             token_payload,
             private_key,
@@ -86,7 +89,6 @@ def generate_apple_token():
             }
         )
         
-        app.logger.info("Successfully generated Apple Music token")
         return jsonify({'token': token})
         
     except Exception as e:
@@ -100,7 +102,7 @@ def apple_app_site_association():
             "apps": [],
             "details": [
                 {
-                    "appID": "B9P7BYTB4S.com.trackfade.musickit",  # TEAM_ID.BUNDLE_ID
+                    "appID": f"{os.getenv('APPLE_TEAM_ID')}.com.trackfade.musickit",
                     "paths": ["*"]
                 }
             ]
@@ -111,36 +113,27 @@ def apple_app_site_association():
 @app.route('/transfer', methods=['POST'])
 def transfer_playlist():
     try:
-        apple_token = request.headers.get('Apple-Music-User-Token')  # Get from headers
+        apple_token = request.headers.get('Apple-Music-User-Token')
         data = request.json
         
-        # Validate parameters
         if not data or 'playlist_url' not in data:
             return jsonify({'error': 'Missing playlist URL'}), 400
             
-        if not apple_token:
-            return jsonify({'error': 'Missing Apple Music token'}), 401
+        if not apple_token or not validate_apple_token(apple_token):
+            return jsonify({'error': 'Invalid Apple Music token'}), 401
 
         spotify_url = data['playlist_url']
-        apple_token = data.get('apple_token')
-        
-        # Validate inputs
-        if not spotify_url or not apple_token:
-            return jsonify({'error': 'Missing required parameters'}), 400
 
-        # Extract Spotify playlist ID
         try:
             playlist_id = spotify_url.split('/playlist/')[1].split('?')[0]
         except IndexError:
             return jsonify({'error': 'Invalid Spotify playlist URL'}), 400
 
-        # Get Spotify tracks
         try:
             spotify_tracks = get_spotify_tracks(playlist_id)
         except Exception as e:
             return jsonify({'error': f'Spotify API error: {str(e)}'}), 500
 
-        # Process tracks
         apple_tracks = []
         missing_tracks = []
         
@@ -155,10 +148,8 @@ def transfer_playlist():
                 else:
                     missing_tracks.append(f"{track['artist']} - {track['name']}")
             except Exception as e:
-                app.logger.error(f"Track error: {track} - {str(e)}")
                 missing_tracks.append(f"{track['artist']} - {track['name']}")
 
-        # Create Apple Music playlist
         try:
             created = create_apple_playlist(
                 "Imported from Spotify",
@@ -179,9 +170,22 @@ def transfer_playlist():
         app.logger.error(f"Transfer failed: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
+def validate_apple_token(token):
+    try:
+        response = requests.get(
+            'https://api.music.apple.com/v1/me/storefront',
+            headers={'Authorization': f"Bearer {token}"}
+        )
+        return response.status_code == 200
+    except:
+        return False
+
 # Spotify API Helper
 def get_spotify_tracks(playlist_id):
     try:
+        if 'spotify_token' not in session:
+            raise ValueError("No Spotify session found")
+        
         headers = {'Authorization': f"Bearer {session['spotify_token']}"}
         response = requests.get(
             f'https://api.spotify.com/v1/playlists/{playlist_id}/tracks',
