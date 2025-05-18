@@ -107,8 +107,8 @@ def apple_app_site_association():
 @app.route('/transfer', methods=['POST'])
 def transfer_playlist():
     try:
+        apple_token = request.headers.get('Apple-Music-User-Token')  # Get from headers
         data = request.json
-        apple_token = request.headers.get('Apple-Music-User-Token')  # Get from header
         
         # Validate parameters
         if not data or 'playlist_url' not in data:
@@ -117,7 +117,7 @@ def transfer_playlist():
         if not apple_token:
             return jsonify({'error': 'Missing Apple Music token'}), 401
 
-        spotify_url = data.get('playlist_url')
+        spotify_url = data['playlist_url']
         apple_token = data.get('apple_token')
         
         # Validate inputs
