@@ -268,7 +268,14 @@
 
     // Initialize Apple Music
     async function initializeMusicKit() {
-        try {
+    try {
+        const tokenResponse = await fetch('/apple-token');
+        if (!tokenResponse.ok) throw new Error('Failed to get Apple token');
+        
+        const { token } = await tokenResponse.json();
+        // ✅ Verify token exists
+        if (!token) throw new Error('Empty Apple token received');
+        
             // Show loading overlay
             document.getElementById('loadingOverlay').style.display = 'flex';
             
@@ -301,6 +308,9 @@
     // Handle Apple Music authorization
     async function handleAppleAuth() {
         try {
+            if (!musicKitInstance) {
+            throw new Error('Apple Music not initialized');
+        }
             const musicUserToken = await musicKitInstance.authorize();
             await updateAuthState();
             alert('Successfully connected Apple Music!');
