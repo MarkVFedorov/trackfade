@@ -26,8 +26,8 @@ services:
       - key: APPLE_PRIVATE_KEY
         value: |
           -----BEGIN PRIVATE KEY-----
-          MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgCV0oJ8VZEYB34Qyx
+          \nMIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgCV0oJ8VZEYB34Qyx
           MPfuOuG9dhe165x8Oq5azVB/kKqgCgYIKoZIzj0DAQehRANCAASNotmRHJjEQHDR
           b90U0kXp/EVHn0XHe4JdaEGBkLkdL/hCF/TnicmNXw0tpenJ3+2XjN4E4Up/Phl0
-          XyYhWhn7
+          XyYhWhn7\n
           -----END PRIVATE KEY-----
