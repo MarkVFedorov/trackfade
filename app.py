@@ -13,11 +13,14 @@ app = Flask(__name__, static_folder='static', static_url_path='')
 app.secret_key = os.getenv('FLASK_SECRET_KEY')
 app.config.update(
     SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_SAMESITE='Lax',
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE='Lax'
+    PREFERRED_URL_SCHEME='https'
 )
 
-CORS(app, supports_credentials=True, origins=[os.getenv('FRONTEND_URL')])
+CORS(app, 
+     supports_credentials=True,
+     origins=os.getenv('FRONTEND_URL', 'http://localhost:5000').split(','))
 
 # Spotify OAuth Endpoints
 @app.route('/spotify_login')
