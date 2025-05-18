@@ -76,17 +76,7 @@ def generate_apple_token():
             'iat': now,
             'exp': now + timedelta(hours=1)
         }
-        except Exception as e:
-        app.logger.error(f"Apple token failure: {str(e)}")
-        return jsonify({
-            'error': 'Apple Music config error',
-            'debug': {
-                'team_id_set': bool(os.getenv('APPLE_TEAM_ID')),
-                'key_id_set': bool(os.getenv('APPLE_KEY_ID')),
-                'private_key_valid': 'BEGIN PRIVATE KEY' in os.getenv('APPLE_PRIVATE_KEY', '')
-            }
-    }), 500
-        
+
         private_key = os.getenv('APPLE_PRIVATE_KEY').replace('\\n', '\n')
         
         if not private_key.startswith('-----BEGIN PRIVATE KEY-----'):
@@ -106,7 +96,14 @@ def generate_apple_token():
         
     except Exception as e:
         app.logger.error(f"Apple token generation failed: {str(e)}")
-        return jsonify({'error': 'Apple Music configuration error'}), 500
+        return jsonify({
+            'error': 'Apple Music config error',
+            'debug': {
+                'team_id_set': bool(os.getenv('APPLE_TEAM_ID')),
+                'key_id_set': bool(os.getenv('APPLE_KEY_ID')),
+                'private_key_valid': 'BEGIN PRIVATE KEY' in os.getenv('APPLE_PRIVATE_KEY', '')
+            }
+        }), 500
 
 @app.route('/.well-known/apple-app-site-association')
 def apple_app_site_association():
