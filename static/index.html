@@ -263,201 +263,115 @@
         </div>
     </div>
 
-    <script>
+<script>
     let musicKitInstance = null;
 
-    // Initialize Apple Music
     async function initializeMusicKit() {
-    try {
-        const tokenResponse = await fetch('/apple-token');
-        if (!tokenResponse.ok) throw new Error('Failed to get Apple token');
-        
-        const { token } = await tokenResponse.json();
-        // ✅ Verify token exists
-        if (!token) throw new Error('Empty Apple token received');
-        
-            // Show loading overlay
-            document.getElementById('loadingOverlay').style.display = 'flex';
-            
-            // Get developer token from backend
+        try {
+            if (window.MusicKit && window.MusicKit.getInstance()) {
+                musicKitInstance = window.MusicKit.getInstance();
+                return;
+            }
+
             const tokenResponse = await fetch('/apple-token');
-            const { token } = await tokenResponse.json();
+            if (!tokenResponse.ok) throw new Error('Failed to get Apple token');
             
-            // Configure MusicKit with bundleID
-            musicKitInstance = await MusicKit.configure({
+            const { token } = await tokenResponse.json();
+            if (!token) throw new Error('Invalid Apple token received');
+
+            musicKitInstance = await window.MusicKit.configure({
                 developerToken: token,
                 app: {
                     name: 'TrackFade',
                     build: '1.0',
-                    bundleID: 'com.trackfade.musickit'  // Must match Apple Developer
+                    bundleID: 'com.trackfade.musickit'
                 },
-                features: ['listen-with']
+                features: ['listen-with', 'add-to-playlist']
             });
 
-            // Update UI state after initialization
+            console.log('MusicKit initialized:', musicKitInstance);
             await updateAuthState();
         } catch (error) {
             console.error('MusicKit initialization failed:', error);
             alert('Failed to initialize Apple Music integration');
+        }
+    }
+
+    async function handleAppleAuth() {
+        try {
+            if (!musicKitInstance) throw new Error('Apple Music integration not initialized');
+            
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            await musicKitInstance.authorize();
+            
+            if (!musicKitInstance.isAuthorized) {
+                throw new Error('Authorization failed - user denied access');
+            }
+            
+            await updateAuthState();
+            alert('Successfully connected to Apple Music!');
+            
+        } catch (error) {
+            console.error('Apple Music auth error:', error);
+            alert(`Apple Music connection failed: ${error.message}`);
         } finally {
-            // Hide loading overlay
             document.getElementById('loadingOverlay').style.display = 'none';
         }
     }
-        
-        // Check for existing configuration
-        if (window.MusicKit && window.MusicKit.getInstance()) {
-            musicKitInstance = window.MusicKit.getInstance();
-            return;
-        }
 
-        // Get developer token
-        const tokenResponse = await fetch('/apple-token');
-        if (!tokenResponse.ok) throw new Error('Failed to get Apple token');
-        
-        const { token } = await tokenResponse.json();
-        if (!token) throw new Error('Invalid Apple token received');
-
-        // Configure MusicKit
-        musicKitInstance = await window.MusicKit.configure({
-            developerToken: token,
-            app: {
-                name: 'TrackFade',
-                build: '1.0',
-                bundleID: 'com.trackfade.musickit'
-            },
-            features: ['listen-with', 'add-to-playlist']
-        });
-
-        // Debug output
-        console.log('MusicKit initialized:', musicKitInstance);
-        
-    } catch (error) {
-        console.error('MusicKit initialization failed:', error);
-        alert('Failed to initialize Apple Music integration');
-    }
-}
-
-    // Handle Apple Music authorization
-async function handleAppleAuth() {
-    try {
-        if (!musicKitInstance) {
-            throw new Error('Apple Music integration not initialized');
-        }
-        
-        // Show loading state
-        document.getElementById('loadingOverlay').style.display = 'flex';
-        
-        // Request MusicKit authorization
-        const userToken = await musicKitInstance.authorize();
-        
-        // Verify authorization
-        if (!musicKitInstance.isAuthorized) {
-            throw new Error('Authorization failed - user denied access');
-        }
-        
-        // Update UI
-        await updateAuthState();
-        alert('Successfully connected to Apple Music!');
-        
-    } catch (error) {
-        console.error('Apple Music auth error:', error);
-        alert(`Apple Music connection failed: ${error.message}`);
-    } finally {
-        document.getElementById('loadingOverlay').style.display = 'none';
-    }
-}
-
-// Update initialization to handle button clicks properly
-document.addEventListener('DOMContentLoaded', async () => {
-    await initializeMusicKit();
-    
-    // Use event delegation to handle dynamic elements
-    document.body.addEventListener('click', (e) => {
-        if (e.target.closest('#appleAuthBtn')) {
-            handleAppleAuth();
-        }
-    }
-                                   
-    // Update UI state
     async function updateAuthState() {
         try {
             const spotifyAuthed = await checkSpotifyAuth();
             const appleAuthed = musicKitInstance?.isAuthorized;
             
-            document.getElementById('authSection').classList.toggle(
-                'hidden', 
-                spotifyAuthed && appleAuthed
-            );
-            document.getElementById('transferSection').classList.toggle(
-                'hidden', 
-                !(spotifyAuthed && appleAuthed)
-            );
+            document.getElementById('authSection').classList.toggle('hidden', spotifyAuthed && appleAuthed);
+            document.getElementById('transferSection').classList.toggle('hidden', !(spotifyAuthed && appleAuthed));
         } catch (error) {
             console.error('Auth state update failed:', error);
         }
     }
 
-    // Check Spotify auth status
     async function checkSpotifyAuth() {
         try {
             const response = await fetch('/check_spotify');
             return response.ok;
         } catch (error) {
+            console.error('Spotify auth check failed:', error);
             return false;
         }
     }
 
-    // Initialize when DOM loads
-    document.addEventListener('DOMContentLoaded', async () => {
-        await initializeMusicKit();
-        document.getElementById('appleAuthBtn').addEventListener('click', handleAppleAuth);
-    });
-
-    // Debugging
-    console.log("Script loaded successfully");
-    window.onerror = function(message, source, lineno, colno, error) {
-        console.error("Global error:", message, "at", source, lineno + ":" + colno);
-    };
-
     async function startTransfer() {
-    try {
-        const url = document.getElementById('playlistUrl').value;
-        const appleToken = musicKitInstance.currentUserMusicToken;
+        try {
+            const url = document.getElementById('playlistUrl').value;
+            const appleToken = musicKitInstance.currentUserMusicToken;
 
-        // Validate inputs
-        if (!url || !appleToken) {
-            throw new Error('Please connect both services and enter a playlist URL');
-        }
+            if (!url || !appleToken) {
+                throw new Error('Please connect both services and enter a playlist URL');
+            }
 
-        // Show loading state
-        document.getElementById('progressBar').style.width = '10%';
-        document.getElementById('progressText').textContent = 'Starting transfer...';
+            document.getElementById('progressBar').style.width = '10%';
+            document.getElementById('progressText').textContent = 'Starting transfer...';
 
-        // ✅ Single fetch call with proper headers
-        const response = await fetch('/transfer', {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Apple-Music-User-Token': appleToken
-            },
-            body: JSON.stringify({ playlist_url: url })
-        });
+            const response = await fetch('/transfer', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Apple-Music-User-Token': appleToken
+                },
+                body: JSON.stringify({ playlist_url: url })
+            });
 
-            // Update progress
             document.getElementById('progressBar').style.width = '50%';
             document.getElementById('progressText').textContent = 'Processing tracks...';
 
             const result = await response.json();
-            
             if (!response.ok) throw new Error(result.error || 'Transfer failed');
 
-            // Complete progress
             document.getElementById('progressBar').style.width = '100%';
             document.getElementById('progressText').textContent = 'Transfer complete!';
-            
-            // Show results
             document.getElementById('transferredCount').textContent = result.transferred;
+            
             document.getElementById('missingTracks').innerHTML = result.missing.length > 0 ? 
                 `<h3>Missing ${result.missing.length} tracks:</h3>
                  <ul>${result.missing.map(t => `<li>${t}</li>`).join('')}</ul>` : '';
@@ -470,6 +384,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('progressBar').style.background = '#ff0000';
         }
     }
+
+    // Event Listeners
+    document.addEventListener('DOMContentLoaded', async () => {
+        await initializeMusicKit();
+        
+        document.body.addEventListener('click', (e) => {
+            if (e.target.closest('#appleAuthBtn')) {
+                handleAppleAuth();
+            }
+        });
+    });
+
+    window.onerror = function(message, source, lineno, colno, error) {
+        console.error("Global error:", message, "at", source, lineno + ":" + colno);
+    };
     </script>
 </body>
 </html>
