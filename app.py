@@ -70,6 +70,10 @@ def generate_apple_token():
         }
         
         private_key = os.getenv('APPLE_PRIVATE_KEY').replace('\\n', '\n')
+        
+        # Validate key format
+        if not private_key.startswith('-----BEGIN PRIVATE KEY-----'):
+            raise ValueError('Invalid private key format')
 
         # Explicitly specify the algorithm
         token = jwt.encode(
