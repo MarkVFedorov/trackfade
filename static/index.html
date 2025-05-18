@@ -304,22 +304,81 @@
             document.getElementById('loadingOverlay').style.display = 'none';
         }
     }
+        
+        // Check for existing configuration
+        if (window.MusicKit && window.MusicKit.getInstance()) {
+            musicKitInstance = window.MusicKit.getInstance();
+            return;
+        }
+
+        // Get developer token
+        const tokenResponse = await fetch('/apple-token');
+        if (!tokenResponse.ok) throw new Error('Failed to get Apple token');
+        
+        const { token } = await tokenResponse.json();
+        if (!token) throw new Error('Invalid Apple token received');
+
+        // Configure MusicKit
+        musicKitInstance = await window.MusicKit.configure({
+            developerToken: token,
+            app: {
+                name: 'TrackFade',
+                build: '1.0',
+                bundleID: 'com.trackfade.musickit'
+            },
+            features: ['listen-with', 'add-to-playlist']
+        });
+
+        // Debug output
+        console.log('MusicKit initialized:', musicKitInstance);
+        
+    } catch (error) {
+        console.error('MusicKit initialization failed:', error);
+        alert('Failed to initialize Apple Music integration');
+    }
+}
 
     // Handle Apple Music authorization
-    async function handleAppleAuth() {
-        try {
-            if (!musicKitInstance) {
-            throw new Error('Apple Music not initialized');
+async function handleAppleAuth() {
+    try {
+        if (!musicKitInstance) {
+            throw new Error('Apple Music integration not initialized');
         }
-            const musicUserToken = await musicKitInstance.authorize();
-            await updateAuthState();
-            alert('Successfully connected Apple Music!');
-        } catch (error) {
-            console.error('Apple Music authorization failed:', error);
-            alert('Apple Music authentication failed. Please try again.');
+        
+        // Show loading state
+        document.getElementById('loadingOverlay').style.display = 'flex';
+        
+        // Request MusicKit authorization
+        const userToken = await musicKitInstance.authorize();
+        
+        // Verify authorization
+        if (!musicKitInstance.isAuthorized) {
+            throw new Error('Authorization failed - user denied access');
+        }
+        
+        // Update UI
+        await updateAuthState();
+        alert('Successfully connected to Apple Music!');
+        
+    } catch (error) {
+        console.error('Apple Music auth error:', error);
+        alert(`Apple Music connection failed: ${error.message}`);
+    } finally {
+        document.getElementById('loadingOverlay').style.display = 'none';
+    }
+}
+
+// Update initialization to handle button clicks properly
+document.addEventListener('DOMContentLoaded', async () => {
+    await initializeMusicKit();
+    
+    // Use event delegation to handle dynamic elements
+    document.body.addEventListener('click', (e) => {
+        if (e.target.closest('#appleAuthBtn')) {
+            handleAppleAuth();
         }
     }
-
+                                   
     // Update UI state
     async function updateAuthState() {
         try {
