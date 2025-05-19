@@ -24,7 +24,7 @@ services:
       - key: APPLE_KEY_ID
         value: X3MF4GG832
       - key: APPLE_PRIVATE_KEY
-        value: |
+        value:
           -----BEGIN PRIVATE KEY-----
           \nMIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQgCV0oJ8VZEYB34Qyx
           MPfuOuG9dhe165x8Oq5azVB/kKqgCgYIKoZIzj0DAQehRANCAASNotmRHJjEQHDR
