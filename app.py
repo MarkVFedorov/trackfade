@@ -20,7 +20,13 @@ app.config.update(
 
 CORS(app, 
      supports_credentials=True,
-     origins=os.getenv('FRONTEND_URL', 'http://localhost:5000').split(','))
+     origins=[
+         "https://trackfade.onrender.com",
+         "https://trackfade.com"
+     ],
+     methods=["GET", "POST"],
+     expose_headers=["Apple-Music-User-Token"]
+)
 
 # Spotify OAuth Endpoints
 @app.route('/spotify_login')
