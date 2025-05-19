@@ -267,35 +267,34 @@
     let musicKitInstance = null;
 
     async function initializeMusicKit() {
-        try {
-            if (window.MusicKit && window.MusicKit.getInstance()) {
-                musicKitInstance = window.MusicKit.getInstance();
-                return;
-            }
-
-            const tokenResponse = await fetch('/apple-token');
-            if (!tokenResponse.ok) throw new Error('Failed to get Apple token');
-            
-            const { token } = await tokenResponse.json();
-            if (!token) throw new Error('Invalid Apple token received');
-
-            musicKitInstance = await window.MusicKit.configure({
-                developerToken: token,
-                app: {
-                    name: 'TrackFade',
-                    build: '1.0',
-                    bundleID: 'com.trackfade.musickit'
-                },
-                features: ['listen-with', 'add-to-playlist']
-            });
-
-            console.log('MusicKit initialized:', musicKitInstance);
-            await updateAuthState();
-        } catch (error) {
-            console.error('MusicKit initialization failed:', error);
-            alert('Failed to initialize Apple Music integration');
+    try {
+        if (!window.MusicKit) {
+            throw new Error('MusicKit JS not loaded. Check browser console for CDN errors.');
         }
+
+        const tokenResponse = await fetch('/apple-token');
+        if (!tokenResponse.ok) throw new Error('Failed to get Apple token');
+        const { token } = await tokenResponse.json();
+
+        musicKitInstance = await window.MusicKit.configure({
+            developerToken: token,
+            app: {
+                name: 'TrackFade',
+                build: '1.0',
+                bundleID: 'com.trackfade.musickit'
+            },
+            features: ['listen-with', 'add-to-playlist'],
+            debug: true
+        });
+
+        console.log('MusicKit initialized:', musicKitInstance);
+        await updateAuthState();
+    } catch (error) {
+        console.error('Initialization failed:', error);
+        alert(`Apple Music init failed: ${error.message}`);
+        throw error;
     }
+}
 
     async function handleAppleAuth() {
         try {
