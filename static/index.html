@@ -384,7 +384,10 @@
         }
     }
 
-    // Event Listeners
+document.addEventListener('musickitloaded', async () => {
+    console.log('MusicKit JS fully loaded');
+    await initializeMusicKit();
+    
     document.addEventListener('DOMContentLoaded', async () => {
         await initializeMusicKit();
         
