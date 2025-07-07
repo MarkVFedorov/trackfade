@@ -160,6 +160,57 @@
             animation: bounce 2s infinite;
         }
 
+        .playlist-link {
+            margin: 1.5rem 0;
+            padding: 1rem;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .playlist-link a {
+            color: var(--apple-red);
+            font-weight: 600;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .playlist-link a:hover {
+            text-decoration: underline;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            flex-direction: column;
+            color: white;
+        }
+
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--spotify-green);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
@@ -192,6 +243,13 @@
             padding: 0;
             margin: 0;
             columns: 2;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .error-text {
+            color: #ff4d4d;
+            margin-top: 1rem;
         }
 
         @media (max-width: 768px) {
@@ -207,9 +265,11 @@
     </style>
 </head>
 <body>
-    <div class="loading-overlay" id="loadingOverlay">
-    <div class="loading-spinner"></div>
-</div>
+    <div class="loading-overlay hidden" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <p id="loadingText">Processing...</p>
+    </div>
+    
     <div class="background-wave"></div>
     
     <div class="container">
@@ -237,6 +297,7 @@
 
         <div id="transferSection" class="card hidden">
             <input type="text" class="playlist-input" id="playlistUrl" placeholder="Paste Spotify Playlist URL">
+            <div class="error-text" id="urlError"></div>
             <button class="btn spotify-btn" onclick="startTransfer()">
                 <i class="fas fa-magic"></i>
                 Start Magic Transfer
@@ -245,13 +306,21 @@
             <div class="progress-container">
                 <div class="progress-bar" id="progressBar" style="width: 0%"></div>
             </div>
-            <p id="progressText">Initializing transfer...</p>
+            <p id="progressText">Ready to transfer</p>
         </div>
 
         <div id="resultsSection" class="card hidden results-card">
             <div class="music-note">🎉</div>
             <h2>Transfer Complete!</h2>
             <p><span id="transferredCount">0</span> tracks successfully transferred</p>
+            
+            <div class="playlist-link">
+                <a href="#" target="_blank" id="playlistLink">
+                    <i class="fab fa-apple"></i>
+                    <span id="playlistName">Open in Apple Music</span>
+                </a>
+            </div>
+            
             <div class="missing-tracks" id="missingTracks"></div>
             
             <div style="margin-top: 2rem;">
@@ -266,41 +335,46 @@
 <script>
     let musicKitInstance = null;
 
-    async function initializeMusicKit() {
-    try {
-        if (!window.MusicKit) {
-            throw new Error('MusicKit JS not loaded. Check browser console for CDN errors.');
-        }
-
-        const tokenResponse = await fetch('/apple-token');
-        if (!tokenResponse.ok) throw new Error('Failed to get Apple token');
-        const { token } = await tokenResponse.json();
-
-        musicKitInstance = await window.MusicKit.configure({
-            developerToken: token,
-            app: {
-                name: 'TrackFade',
-                build: '1.0',
-                bundleID: 'com.trackfade.musickit'
-            },
-            features: ['listen-with', 'add-to-playlist'],
-            debug: true
-        });
-
-        console.log('MusicKit initialized:', musicKitInstance);
-        await updateAuthState();
-    } catch (error) {
-        console.error('Initialization failed:', error);
-        alert(`Apple Music init failed: ${error.message}`);
-        throw error;
+    // Spotify URL validation
+    function isValidSpotifyUrl(url) {
+        const pattern = /^https:\/\/open\.spotify\.com\/playlist\/[a-zA-Z0-9]+(\?si=[a-zA-Z0-9]+)?$/;
+        return pattern.test(url);
     }
-}
 
+    // Initialize MusicKit
+    async function initializeMusicKit() {
+        try {
+            if (!window.MusicKit) {
+                throw new Error('MusicKit JS not loaded');
+            }
+
+            const tokenResponse = await fetch('/apple-token');
+            if (!tokenResponse.ok) throw new Error('Failed to get Apple token');
+            const { token } = await tokenResponse.json();
+
+            musicKitInstance = await window.MusicKit.configure({
+                developerToken: token,
+                app: {
+                    name: 'TrackFade',
+                    build: '1.0',
+                    bundleID: 'com.trackfade.musickit'
+                },
+                features: ['listen-with', 'add-to-playlist']
+            });
+
+            await updateAuthState();
+        } catch (error) {
+            console.error('MusicKit init failed:', error);
+            alert(`Apple Music init failed: ${error.message}`);
+        }
+    }
+
+    // Handle Apple Music authorization
     async function handleAppleAuth() {
         try {
-            if (!musicKitInstance) throw new Error('Apple Music integration not initialized');
+            if (!musicKitInstance) throw new Error('Apple Music not initialized');
             
-            document.getElementById('loadingOverlay').style.display = 'flex';
+            showLoading('Connecting to Apple Music...');
             await musicKitInstance.authorize();
             
             if (!musicKitInstance.isAuthorized) {
@@ -308,16 +382,15 @@
             }
             
             await updateAuthState();
-            alert('Successfully connected to Apple Music!');
-            
         } catch (error) {
-            console.error('Apple Music auth error:', error);
+            console.error('Apple auth error:', error);
             alert(`Apple Music connection failed: ${error.message}`);
         } finally {
-            document.getElementById('loadingOverlay').style.display = 'none';
+            hideLoading();
         }
     }
 
+    // Update authentication state
     async function updateAuthState() {
         try {
             const spotifyAuthed = await checkSpotifyAuth();
@@ -326,31 +399,57 @@
             document.getElementById('authSection').classList.toggle('hidden', spotifyAuthed && appleAuthed);
             document.getElementById('transferSection').classList.toggle('hidden', !(spotifyAuthed && appleAuthed));
         } catch (error) {
-            console.error('Auth state update failed:', error);
+            console.error('Auth update error:', error);
         }
     }
 
+    // Check Spotify auth status
     async function checkSpotifyAuth() {
         try {
             const response = await fetch('/check_spotify');
             return response.ok;
         } catch (error) {
-            console.error('Spotify auth check failed:', error);
+            console.error('Spotify check error:', error);
             return false;
         }
     }
 
+    // Show loading overlay
+    function showLoading(message = 'Processing...') {
+        const overlay = document.getElementById('loadingOverlay');
+        document.getElementById('loadingText').textContent = message;
+        overlay.classList.remove('hidden');
+    }
+
+    // Hide loading overlay
+    function hideLoading() {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+    }
+
+    // Update progress
+    function updateProgress(width, text) {
+        document.getElementById('progressBar').style.width = `${width}%`;
+        document.getElementById('progressText').textContent = text;
+    }
+
+    // Start playlist transfer
     async function startTransfer() {
         try {
             const url = document.getElementById('playlistUrl').value;
-            const appleToken = musicKitInstance.currentUserMusicToken;
-
-            if (!url || !appleToken) {
-                throw new Error('Please connect both services and enter a playlist URL');
+            const errorElement = document.getElementById('urlError');
+            
+            // Validate URL
+            if (!isValidSpotifyUrl(url)) {
+                errorElement.textContent = 'Please enter a valid Spotify playlist URL';
+                return;
             }
+            errorElement.textContent = '';
+            
+            const appleToken = musicKitInstance.currentUserMusicToken;
+            if (!appleToken) throw new Error('Apple Music not connected');
 
-            document.getElementById('progressBar').style.width = '10%';
-            document.getElementById('progressText').textContent = 'Starting transfer...';
+            showLoading('Starting transfer...');
+            updateProgress(10, 'Fetching playlist...');
 
             const response = await fetch('/transfer', {
                 method: 'POST',
@@ -361,46 +460,63 @@
                 body: JSON.stringify({ playlist_url: url })
             });
 
-            document.getElementById('progressBar').style.width = '50%';
-            document.getElementById('progressText').textContent = 'Processing tracks...';
-
+            updateProgress(40, 'Processing tracks...');
+            
             const result = await response.json();
             if (!response.ok) throw new Error(result.error || 'Transfer failed');
 
-            document.getElementById('progressBar').style.width = '100%';
-            document.getElementById('progressText').textContent = 'Transfer complete!';
-            document.getElementById('transferredCount').textContent = result.transferred;
+            updateProgress(100, 'Transfer complete!');
             
-            document.getElementById('missingTracks').innerHTML = result.missing.length > 0 ? 
-                `<h3>Missing ${result.missing.length} tracks:</h3>
-                 <ul>${result.missing.map(t => `<li>${t}</li>`).join('')}</ul>` : '';
+            // Display results
+            document.getElementById('transferredCount').textContent = result.transferred;
+            document.getElementById('playlistName').textContent = result.playlist_name;
+            document.getElementById('playlistLink').href = result.playlist_url;
+            
+            // Show missing tracks
+            if (result.missing.length > 0) {
+                document.getElementById('missingTracks').innerHTML = `
+                    <h3>Missing ${result.missing.length} tracks:</h3>
+                    <ul>${result.missing.map(t => `<li>${t}</li>`).join('')}</ul>
+                `;
+            }
             
             document.getElementById('resultsSection').classList.remove('hidden');
-
         } catch (error) {
             console.error('Transfer error:', error);
             document.getElementById('progressText').textContent = `Error: ${error.message}`;
             document.getElementById('progressBar').style.background = '#ff0000';
+        } finally {
+            hideLoading();
         }
     }
 
-document.addEventListener('musickitloaded', async () => {
-    console.log('MusicKit JS fully loaded');
-    await initializeMusicKit();
-    
+    // Initialize when DOM is loaded
     document.addEventListener('DOMContentLoaded', async () => {
-        await initializeMusicKit();
-        
-        document.body.addEventListener('click', (e) => {
-            if (e.target.closest('#appleAuthBtn')) {
-                handleAppleAuth();
-            }
-        });
+        try {
+            // Initialize MusicKit
+            await initializeMusicKit();
+            
+            // Attach Apple Auth button handler
+            document.getElementById('appleAuthBtn').addEventListener('click', handleAppleAuth);
+            
+            // URL validation on input
+            document.getElementById('playlistUrl').addEventListener('input', function() {
+                if (this.value && !isValidSpotifyUrl(this.value)) {
+                    document.getElementById('urlError').textContent = 'Please enter a valid Spotify URL';
+                } else {
+                    document.getElementById('urlError').textContent = '';
+                }
+            });
+        } catch (error) {
+            console.error('Initialization error:', error);
+        }
     });
 
-    window.onerror = function(message, source, lineno, colno, error) {
-        console.error("Global error:", message, "at", source, lineno + ":" + colno);
+    // Global error handling
+    window.onerror = function(message) {
+        console.error("Global error:", message);
+        hideLoading();
     };
-    </script>
+</script>
 </body>
 </html>
