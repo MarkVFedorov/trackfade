@@ -121,6 +121,22 @@
             transition: all 0.3s ease;
         }
 
+        .connection-status {
+            padding: 0.5rem;
+            border-radius: 8px;
+            margin: 0.5rem 0;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .connection-status.connected {
+            background: rgba(46, 204, 113, 0.2);
+            color: #2ecc71;
+        }
+
+        .connection-status i {
+            margin-right: 0.5rem;
+        }
+
         .playlist-input:focus {
             outline: none;
             border-color: var(--spotify-green);
