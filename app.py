@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import jwt
 import requests
@@ -20,13 +21,16 @@ app.config.update(
 
 CORS(app, 
      supports_credentials=True,
-     origins=[
-         "https://trackfade.onrender.com",
-         "https://trackfade.com"
-     ],
+     origins=json.loads(os.getenv('FRONTEND_URLS', '[]')),
      methods=["GET", "POST"],
+     allow_headers=["Content-Type", "Authorization", "Apple-Music-User-Token"],
      expose_headers=["Apple-Music-User-Token"]
 )
+
+# Spotify URL Validation
+def is_valid_spotify_url(url):
+    pattern = r'^https:\/\/open\.spotify\.com\/playlist\/[a-zA-Z0-9]+(\?si=[a-zA-Z0-9]+)?$'
+    return re.match(pattern, url) is not None
 
 # Spotify OAuth Endpoints
 @app.route('/spotify_login')
@@ -83,7 +87,7 @@ def generate_apple_token():
             'exp': now + timedelta(hours=1)
         }
 
-        private_key = os.getenv('APPLE_PRIVATE_KEY').replace('\\n', '\n')
+        private_key = os.getenv('APPLE_PRIVATE_KEY').replace('\\\\n', '\n')
         
         if not private_key.startswith('-----BEGIN PRIVATE KEY-----'):
             raise ValueError('Invalid private key format')
@@ -139,11 +143,14 @@ def transfer_playlist():
             return jsonify({'error': 'Invalid Apple Music token'}), 401
 
         spotify_url = data['playlist_url']
+        
+        if not is_valid_spotify_url(spotify_url):
+            return jsonify({'error': 'Invalid Spotify playlist URL'}), 400
 
         try:
             playlist_id = spotify_url.split('/playlist/')[1].split('?')[0]
         except IndexError:
-            return jsonify({'error': 'Invalid Spotify playlist URL'}), 400
+            return jsonify({'error': 'Invalid Spotify playlist URL format'}), 400
 
         try:
             spotify_tracks = get_spotify_tracks(playlist_id)
@@ -153,7 +160,7 @@ def transfer_playlist():
         apple_tracks = []
         missing_tracks = []
         
-        for track in spotify_tracks:
+        for i, track in enumerate(spotify_tracks):
             try:
                 apple_id = search_apple_music(
                     f"{track['name']} {track['artist']}",
@@ -173,13 +180,15 @@ def transfer_playlist():
                 apple_token
             )
             playlist_url = created.get('attributes', {}).get('url', '#')
+            playlist_name = created.get('attributes', {}).get('name', 'Apple Music Playlist')
         except Exception as e:
             return jsonify({'error': f'Apple Music API error: {str(e)}'}), 500
 
         return jsonify({
             'transferred': len(apple_tracks),
             'missing': missing_tracks,
-            'playlist_url': playlist_url
+            'playlist_url': playlist_url,
+            'playlist_name': playlist_name
         })
     
     except Exception as e:
@@ -203,16 +212,24 @@ def get_spotify_tracks(playlist_id):
             raise ValueError("No Spotify session found")
         
         headers = {'Authorization': f"Bearer {session['spotify_token']}"}
-        response = requests.get(
-            f'https://api.spotify.com/v1/playlists/{playlist_id}/tracks',
-            headers=headers
-        )
-        response.raise_for_status()
+        all_tracks = []
+        next_url = f'https://api.spotify.com/v1/playlists/{playlist_id}/tracks?limit=100'
         
-        return [{
-            'name': item['track']['name'],
-            'artist': item['track']['artists'][0]['name']
-        } for item in response.json()['items']]
+        while next_url:
+            response = requests.get(next_url, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            
+            for item in data['items']:
+                if item['track'] and item['track']['type'] == 'track':
+                    all_tracks.append({
+                        'name': item['track']['name'],
+                        'artist': item['track']['artists'][0]['name']
+                    })
+            
+            next_url = data['next']
+            
+        return all_tracks
     
     except Exception as e:
         app.logger.error(f"Spotify API error: {str(e)}")
@@ -268,6 +285,12 @@ def create_apple_playlist(name, track_ids, apple_token):
     except Exception as e:
         app.logger.error(f"Apple Music API error: {str(e)}")
         raise
+
+# Cache Control
+@app.after_request
+def add_header(response):
+    response.headers['Cache-Control'] = 'no-store, max-age=0'
+    return response
 
 # Error handling
 @app.errorhandler(404)
