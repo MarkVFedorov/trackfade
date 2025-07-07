@@ -301,10 +301,21 @@ def not_found(error):
 def internal_error(error):
     return jsonify({'error': 'Internal server error'}), 500
 
-# Auth Status Endpoint
+# Auth Status Endpoints
 @app.route('/check_spotify')
 def check_spotify_auth():
     return jsonify({'authenticated': 'spotify_token' in session})
+
+@app.route('/check_auth')
+def check_auth_status():
+    spotify_authed = 'spotify_token' in session
+    apple_token = request.headers.get('Apple-Music-User-Token', '')
+    apple_authed = validate_apple_token(apple_token) if apple_token else False
+    
+    return jsonify({
+        'spotify_authed': spotify_authed,
+        'apple_authed': apple_authed
+    })
 
 @app.route('/spotify_logout')
 def spotify_logout():
