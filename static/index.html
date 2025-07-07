@@ -14,6 +14,8 @@
             --gradient-end: #302b63;
             --glass-bg: rgba(255, 255, 255, 0.1);
             --text-light: #ffffff;
+            --connected-color: #2ecc71;
+            --not-connected-color: #e74c3c;
         }
 
         body {
@@ -252,6 +254,43 @@
             margin-top: 1rem;
         }
 
+        .connection-status {
+            padding: 0.8rem;
+            border-radius: 12px;
+            margin: 0.8rem 0;
+            background: rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            font-size: 0.95rem;
+        }
+
+        .connection-status.connected {
+            background: rgba(46, 204, 113, 0.15);
+            border: 1px solid rgba(46, 204, 113, 0.3);
+        }
+
+        .connection-status.not-connected {
+            background: rgba(231, 76, 60, 0.15);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .connected .status-indicator {
+            background-color: var(--connected-color);
+            box-shadow: 0 0 8px var(--connected-color);
+        }
+
+        .not-connected .status-indicator {
+            background-color: var(--not-connected-color);
+        }
+
         @media (max-width: 768px) {
             .missing-tracks ul {
                 columns: 1;
@@ -260,6 +299,10 @@
             .btn {
                 width: 100%;
                 justify-content: center;
+            }
+            
+            .connection-status {
+                font-size: 0.85rem;
             }
         }
     </style>
@@ -293,6 +336,17 @@
                     Connect Apple Music
                 </button>
             </div>
+            
+            <div id="connectionStatus" style="margin-top: 1.5rem;">
+                <div id="spotifyStatus" class="connection-status not-connected">
+                    <span class="status-indicator"></span>
+                    <i class="fab fa-spotify"></i> Spotify: Not connected
+                </div>
+                <div id="appleStatus" class="connection-status not-connected">
+                    <span class="status-indicator"></span>
+                    <i class="fab fa-apple"></i> Apple Music: Not connected
+                </div>
+            </div>
         </div>
 
         <div id="transferSection" class="card hidden">
@@ -306,7 +360,7 @@
             <div class="progress-container">
                 <div class="progress-bar" id="progressBar" style="width: 0%"></div>
             </div>
-            <p id="progressText">Ready to transfer</p>
+            <p id="progressText">Connect both services to enable transfer</p>
         </div>
 
         <div id="resultsSection" class="card hidden results-card">
@@ -334,6 +388,10 @@
 
 <script>
     let musicKitInstance = null;
+    let authState = {
+        spotify: false,
+        apple: false
+    };
 
     // Spotify URL validation
     function isValidSpotifyUrl(url) {
@@ -393,24 +451,51 @@
     // Update authentication state
     async function updateAuthState() {
         try {
-            const spotifyAuthed = await checkSpotifyAuth();
-            const appleAuthed = musicKitInstance?.isAuthorized;
+            const appleToken = musicKitInstance?.currentUserMusicToken || '';
             
-            document.getElementById('authSection').classList.toggle('hidden', spotifyAuthed && appleAuthed);
-            document.getElementById('transferSection').classList.toggle('hidden', !(spotifyAuthed && appleAuthed));
+            const response = await fetch('/check_auth', {
+                headers: {
+                    'Apple-Music-User-Token': appleToken
+                }
+            });
+            
+            if (!response.ok) throw new Error('Auth check failed');
+            
+            const status = await response.json();
+            authState = {
+                spotify: status.spotify_authed,
+                apple: status.apple_authed
+            };
+            
+            // Update UI
+            document.getElementById('authSection').classList.toggle('hidden', authState.spotify && authState.apple);
+            document.getElementById('transferSection').classList.toggle('hidden', !(authState.spotify && authState.apple));
+            
+            // Update status indicators
+            document.getElementById('spotifyStatus').className = 
+                authState.spotify ? 'connection-status connected' : 'connection-status not-connected';
+            document.getElementById('spotifyStatus').innerHTML = `
+                <span class="status-indicator"></span>
+                <i class="fab fa-spotify"></i> Spotify: ${authState.spotify ? 'Connected' : 'Not connected'}
+            `;
+            
+            document.getElementById('appleStatus').className = 
+                authState.apple ? 'connection-status connected' : 'connection-status not-connected';
+            document.getElementById('appleStatus').innerHTML = `
+                <span class="status-indicator"></span>
+                <i class="fab fa-apple"></i> Apple Music: ${authState.apple ? 'Connected' : 'Not connected'}
+            `;
+            
+            // Update transfer section text
+            if (authState.spotify && authState.apple) {
+                document.getElementById('progressText').textContent = 'Ready to transfer';
+            } else if (!authState.spotify) {
+                document.getElementById('progressText').textContent = 'Please connect Spotify first';
+            } else {
+                document.getElementById('progressText').textContent = 'Please connect Apple Music first';
+            }
         } catch (error) {
             console.error('Auth update error:', error);
-        }
-    }
-
-    // Check Spotify auth status
-    async function checkSpotifyAuth() {
-        try {
-            const response = await fetch('/check_spotify');
-            return response.ok;
-        } catch (error) {
-            console.error('Spotify check error:', error);
-            return false;
         }
     }
 
@@ -435,6 +520,12 @@
     // Start playlist transfer
     async function startTransfer() {
         try {
+            // Validate auth state
+            if (!authState.spotify || !authState.apple) {
+                alert('Please connect both services before transferring');
+                return;
+            }
+            
             const url = document.getElementById('playlistUrl').value;
             const errorElement = document.getElementById('urlError');
             
@@ -478,6 +569,8 @@
                     <h3>Missing ${result.missing.length} tracks:</h3>
                     <ul>${result.missing.map(t => `<li>${t}</li>`).join('')}</ul>
                 `;
+            } else {
+                document.getElementById('missingTracks').innerHTML = '';
             }
             
             document.getElementById('resultsSection').classList.remove('hidden');
@@ -493,7 +586,7 @@
     // Initialize when DOM is loaded
     document.addEventListener('DOMContentLoaded', async () => {
         try {
-            // Initialize MusicKit
+            // Initialize MusicKit first
             await initializeMusicKit();
             
             // Attach Apple Auth button handler
@@ -507,8 +600,12 @@
                     document.getElementById('urlError').textContent = '';
                 }
             });
+            
+            // Set up periodic auth checks
+            setInterval(updateAuthState, 15000); // Check every 15 seconds
         } catch (error) {
             console.error('Initialization error:', error);
+            alert(`Initialization failed: ${error.message}`);
         }
     });
 
